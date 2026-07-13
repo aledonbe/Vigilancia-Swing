@@ -1,0 +1,37 @@
+# Feed de vigilancia swing · GitHub Actions
+# En el repositorio este archivo debe vivir en: .github/workflows/vigilancia.yml
+#
+# Los cron de GitHub van en UTC. Madrid es UTC+1 (invierno) o UTC+2 (verano),
+# asi que se lanza a las 20:35 Y 21:35 UTC y el script tiene una guardia que
+# solo deja pasar la ejecucion cuando en Madrid son las 22:xx.
+# Dias 0-5 = domingo a viernes.
+
+name: Vigilancia swing
+
+on:
+  schedule:
+    - cron: "35 20 * * 0-5"
+    - cron: "35 21 * * 0-5"
+  workflow_dispatch: {}   # boton "Run workflow" para probar a mano
+
+jobs:
+  vigilancia:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Instalar dependencias
+        run: pip install -r requirements.txt
+
+      - name: Ejecutar vigilancia y enviar a Telegram
+        run: python vigilancia_cloud.py
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          # Las ejecuciones manuales saltan la guardia horaria:
+          FORZAR: ${{ github.event_name == 'workflow_dispatch' && '1' || '0' }}
