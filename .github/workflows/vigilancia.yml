@@ -1,0 +1,52 @@
+# Feed de vigilancia swing · GitHub Actions · v2 (con web-app)
+# En el repositorio este archivo debe vivir en: .github/workflows/vigilancia.yml
+#
+# Los cron van en UTC; el script tiene guardia horaria para ejecutarse
+# una sola vez al dia a las 22:xx de Madrid (invierno/verano).
+# Dias 0-5 = domingo a viernes.
+# Ademas de Telegram, guarda el feed diario y la auditoria en docs/
+# y los sube al repositorio (los lee la web-app de GitHub Pages).
+
+name: Vigilancia swing
+
+on:
+  schedule:
+    - cron: "35 20 * * 0-5"
+    - cron: "35 21 * * 0-5"
+  workflow_dispatch: {}   # boton "Run workflow" para probar a mano
+
+permissions:
+  contents: write         # necesario para subir el feed diario
+
+concurrency:
+  group: vigilancia
+  cancel-in-progress: false
+
+jobs:
+  vigilancia:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Instalar dependencias
+        run: pip install -r requirements.txt
+
+      - name: Ejecutar vigilancia (Telegram + feed JSON + auditoria)
+        run: python vigilancia_cloud.py
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          FORZAR: ${{ github.event_name == 'workflow_dispatch' && '1' || '0' }}
+
+      - name: Publicar feed e historial en el repositorio
+        run: |
+          git config user.name "vigilancia-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add docs
+          git diff --cached --quiet || git commit -m "feed $(date -u +%F)"
+          git push
