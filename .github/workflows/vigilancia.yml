@@ -1,10 +1,11 @@
-# Feed de vigilancia swing · GitHub Actions
+# Feed de vigilancia swing · GitHub Actions · v2 (con web-app)
 # En el repositorio este archivo debe vivir en: .github/workflows/vigilancia.yml
 #
-# Los cron de GitHub van en UTC. Madrid es UTC+1 (invierno) o UTC+2 (verano),
-# asi que se lanza a las 20:35 Y 21:35 UTC y el script tiene una guardia que
-# solo deja pasar la ejecucion cuando en Madrid son las 22:xx.
+# Los cron van en UTC; el script tiene guardia horaria para ejecutarse
+# una sola vez al dia a las 22:xx de Madrid (invierno/verano).
 # Dias 0-5 = domingo a viernes.
+# Ademas de Telegram, guarda el feed diario y la auditoria en docs/
+# y los sube al repositorio (los lee la web-app de GitHub Pages).
 
 name: Vigilancia swing
 
@@ -13,6 +14,13 @@ on:
     - cron: "35 20 * * 0-5"
     - cron: "35 21 * * 0-5"
   workflow_dispatch: {}   # boton "Run workflow" para probar a mano
+
+permissions:
+  contents: write         # necesario para subir el feed diario
+
+concurrency:
+  group: vigilancia
+  cancel-in-progress: false
 
 jobs:
   vigilancia:
@@ -28,10 +36,7 @@ jobs:
       - name: Instalar dependencias
         run: pip install -r requirements.txt
 
-      - name: Ejecutar vigilancia y enviar a Telegram
+      - name: Ejecutar vigilancia (Telegram + feed JSON + auditoria)
         run: python vigilancia_cloud.py
         env:
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-          # Las ejecuciones manuales saltan la guardia horaria:
-          FORZAR: ${{ github.event_name == 'workflow_dispatch' && '1' || '0' }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TE
